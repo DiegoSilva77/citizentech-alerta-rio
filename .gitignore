@@ -1,0 +1,19 @@
+# Segredos: nunca versionar
+.env
+
+# Ambiente virtual e caches do Python
+.venv/
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Logs gerados em tempo de execução
+logs/*.log*
+
+# Sistema / editores
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+tests/*.log
