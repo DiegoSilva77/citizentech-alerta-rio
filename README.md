@@ -9,7 +9,7 @@
 ![Painel do Alerta Rio em cenário de enchente simulada](docs/painel.png)
 
 📄 Relatório completo: [docs/Relatorio_AlertaRio.pdf](docs/Relatorio_AlertaRio.pdf) ·
-🔗 Repositório: https://github.com/DiegoSilva77/cizitentech-alerta-rio ·
+🔗 Repositório: https://github.com/DiegoSilva77/citizentech-alerta-rio ·
 👤 Diego Araujo Silva · RM 573684
 
 ---
