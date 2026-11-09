@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Alerta Rio · Monitoramento de Enchentes</title>
+  <meta name="description" content="Painel comunitário de monitoramento de enchentes: nível dos rios, previsão de chuva e abrigos.">
+  <link rel="icon" href="{{ url_for('static', filename='img/logo.svg') }}" type="image/svg+xml">
+
+  <!-- Fontes: Plus Jakarta Sans (texto) e JetBrains Mono (números) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <!-- Bibliotecas baixadas para dentro do projeto (funcionam sem CDN) -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='vendor/leaflet.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+
+<!-- Os dados da cidade vão como atributos: assim não precisamos de <script> inline (bloqueado pela CSP) -->
+<body data-lat="{{ lat }}" data-lon="{{ lon }}" data-cidade="{{ cidade }}">
+
+  <!-- ===================== CABEÇALHO ===================== -->
+  <header class="topo">
+    <div class="topo__conteudo">
+      <div class="marca">
+        <img src="{{ url_for('static', filename='img/logo.svg') }}" alt="" class="marca__logo" width="48" height="48">
+        <div>
+          <h1 class="marca__nome">Alerta Rio</h1>
+          <p class="marca__slogan">Monitoramento comunitário de enchentes · {{ cidade }}</p>
+        </div>
+      </div>
+
+      <nav class="abas" aria-label="Seções">
+        <button class="aba aba--ativa" data-aba="painel"><i data-lucide="layout-dashboard"></i> Painel</button>
+        <button class="aba" data-aba="gestao"><i data-lucide="shield-check"></i> Gestão</button>
+      </nav>
+
+      <div class="ao-vivo" title="O painel se atualiza sozinho">
+        <span class="ao-vivo__ponto"></span>
+        <span>Ao vivo · <span id="atualizado-ha">conectando…</span></span>
+      </div>
+    </div>
+    <!-- Onda decorativa -->
+    <svg class="topo__onda" viewBox="0 0 1440 80" preserveAspectRatio="none" aria-hidden="true">
+      <path d="M0,40 C240,80 480,0 720,32 C960,64 1200,8 1440,40 L1440,80 L0,80 Z"></path>
+    </svg>
+  </header>
+
+  <main class="container">
+
+    <!-- ===================== ABA: PAINEL ===================== -->
+    <section id="aba-painel" class="aba-conteudo">
+
+      <!-- Faixa de situação geral -->
+      <div id="situacao" class="situacao situacao--normal" role="status" aria-live="polite">
+        <div class="situacao__icone"><i data-lucide="shield-check"></i></div>
+        <div>
+          <p class="situacao__rotulo">Situação geral</p>
+          <h2 class="situacao__titulo" id="situacao-titulo">Carregando…</h2>
+          <p class="situacao__texto" id="situacao-texto">Buscando dados dos sensores.</p>
+        </div>
+        <div class="situacao__emergencia">
+          <span><i data-lucide="phone"></i> Defesa Civil <strong>199</strong></span>
+          <span><i data-lucide="flame"></i> Bombeiros <strong>193</strong></span>
+        </div>
+      </div>
+
+      <!-- Indicadores -->
+      <div class="indicadores">
+        <article class="indicador">
+          <div class="indicador__icone indicador__icone--sol"><i data-lucide="cloud" id="clima-icone"></i></div>
+          <div>
+            <p class="indicador__rotulo">Tempo agora</p>
+            <p class="indicador__valor"><span id="clima-temp">--</span><small>°C</small></p>
+            <p class="indicador__extra" id="clima-desc">Consultando Open-Meteo…</p>
+          </div>
+        </article>
+        <article class="indicador">
+          <div class="indicador__icone indicador__icone--chuva"><i data-lucide="cloud-rain"></i></div>
+          <div>
+            <p class="indicador__rotulo">Chuva prevista (6h)</p>
+            <p class="indicador__valor"><span id="chuva-6h">--</span><small>mm</small></p>
+            <p class="indicador__extra">Próximas 24h: <strong id="chuva-24h">--</strong> mm</p>
+          </div>
+        </article>
+        <article class="indicador">
+          <div class="indicador__icone indicador__icone--sensor"><i data-lucide="radio-tower"></i></div>
+          <div>
+            <p class="indicador__rotulo">Pontos monitorados</p>
+            <p class="indicador__valor"><span id="total-sensores">--</span></p>
+            <p class="indicador__extra"><span class="ponto ponto--atencao"></span><span id="total-atencao">0</span> atenção
+              · <span class="ponto ponto--perigo"></span><span id="total-perigo">0</span> perigo</p>
+          </div>
+        </article>
+        <article class="indicador">
+          <div class="indicador__icone indicador__icone--abrigo"><i data-lucide="house-plus"></i></div>
+          <div>
+            <p class="indicador__rotulo">Vagas em abrigos</p>
+            <p class="indicador__valor"><span id="total-vagas">--</span></p>
+            <p class="indicador__extra">em <strong id="total-abrigos">--</strong> abrigos ativos</p>
+          </div>
+        </article>
+      </div>
+
+      <!-- Mapa + alertas -->
+      <div class="grade grade--mapa">
+        <article class="cartao">
+          <header class="cartao__topo">
+            <h3><i data-lucide="map"></i> Mapa da cidade</h3>
+            <div class="legenda">
+              <span><span class="ponto ponto--normal"></span>Normal</span>
+              <span><span class="ponto ponto--atencao"></span>Atenção</span>
+              <span><span class="ponto ponto--perigo"></span>Perigo</span>
+              <span><span class="ponto ponto--abrigo"></span>Abrigo</span>
+            </div>
+          </header>
+          <div id="mapa" class="mapa" aria-label="Mapa com sensores e abrigos"></div>
+        </article>
+
+        <article class="cartao">
+          <header class="cartao__topo">
+            <h3><i data-lucide="bell-ring"></i> Últimos alertas</h3>
+          </header>
+          <ol id="lista-alertas" class="linha-tempo"></ol>
+        </article>
+      </div>
+
+      <!-- Sensores -->
+      <div class="secao-titulo">
+        <h3><i data-lucide="waves"></i> Nível dos rios</h3>
+        <p>Toque em um ponto para ver o gráfico</p>
+      </div>
+      <div id="lista-sensores" class="sensores"></div>
+
+      <!-- Gráficos -->
+      <div class="grade grade--graficos">
+        <article class="cartao">
+          <header class="cartao__topo">
+            <h3><i data-lucide="activity"></i> <span id="grafico-titulo">Nível do rio</span></h3>
+          </header>
+          <div class="grafico"><canvas id="grafico-nivel"></canvas></div>
+        </article>
+        <article class="cartao">
+          <header class="cartao__topo">
+            <h3><i data-lucide="cloud-rain-wind"></i> Chuva nas próximas 24h</h3>
+            <span class="fonte">Fonte: Open-Meteo</span>
+          </header>
+          <div class="grafico"><canvas id="grafico-chuva"></canvas></div>
+        </article>
+      </div>
+
+      <!-- Abrigos -->
+      <div class="secao-titulo">
+        <h3><i data-lucide="tent"></i> Abrigos disponíveis</h3>
+        <p>Ordenados por vagas livres</p>
+      </div>
+      <div id="lista-abrigos" class="abrigos"></div>
+    </section>
+
+    <!-- ===================== ABA: GESTÃO ===================== -->
+    <section id="aba-gestao" class="aba-conteudo" hidden>
+
+      <article class="cartao cartao--chave">
+        <div class="chave__info">
+          <div class="indicador__icone indicador__icone--sensor"><i data-lucide="key-round"></i></div>
+          <div>
+            <h3>Acesso do operador</h3>
+            <p>Cadastrar, editar e excluir exige a chave de operador (Defesa Civil / liderança comunitária).
+               A chave fica só nesta aba do navegador e some quando ela é fechada.</p>
+          </div>
+        </div>
+        <form id="form-chave" class="chave__form" autocomplete="off">
+          <input type="password" id="campo-chave" placeholder="Cole aqui a chave de operador" minlength="16" maxlength="128" required aria-label="Chave de operador">
+          <button class="botao botao--primario" type="submit"><i data-lucide="log-in"></i> Entrar</button>
+          <button class="botao botao--fantasma" type="button" id="botao-sair" hidden><i data-lucide="log-out"></i> Sair</button>
+        </form>
+      </article>
+
+      <article class="cartao">
+        <header class="cartao__topo">
+          <h3><i data-lucide="radio-tower"></i> Sensores</h3>
+          <button class="botao botao--primario" id="novo-sensor"><i data-lucide="plus"></i> Novo sensor</button>
+        </header>
+        <div class="tabela-rolagem">
+          <table class="tabela">
+            <thead><tr><th>Código</th><th>Ponto</th><th>Bairro</th><th>Alerta</th><th>Crítico</th><th>Status</th><th></th></tr></thead>
+            <tbody id="tabela-sensores"></tbody>
+          </table>
+        </div>
+      </article>
+
+      <article class="cartao">
+        <header class="cartao__topo">
+          <h3><i data-lucide="house"></i> Abrigos</h3>
+          <button class="botao botao--primario" id="novo-abrigo"><i data-lucide="plus"></i> Novo abrigo</button>
+        </header>
+        <div class="tabela-rolagem">
+          <table class="tabela">
+            <thead><tr><th>Nome</th><th>Bairro</th><th>Ocupação</th><th>Recursos</th><th>Status</th><th></th></tr></thead>
+            <tbody id="tabela-abrigos"></tbody>
+          </table>
+        </div>
+      </article>
+    </section>
+  </main>
+
+  <!-- ===================== RODAPÉ ===================== -->
+  <footer class="rodape">
+    <div class="rodape__ods">
+      <span class="ods ods--11">ODS 11 · Cidades e comunidades sustentáveis</span>
+      <span class="ods ods--13">ODS 13 · Ação contra a mudança do clima</span>
+    </div>
+    <p>Protótipo acadêmico (Global Solution FIAP · CitizenTech). Sensores e abrigos são <strong>fictícios</strong>.
+       Previsão: <a href="https://open-meteo.com" target="_blank" rel="noopener">Open-Meteo</a> ·
+       Mapa: © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a></p>
+  </footer>
+
+  <!-- ===================== MODAL: SENSOR ===================== -->
+  <dialog id="modal-sensor" class="modal">
+    <form id="form-sensor" class="modal__form" novalidate>
+      <header class="modal__topo">
+        <h3 id="modal-sensor-titulo">Novo sensor</h3>
+        <button type="button" class="botao-icone" data-fechar aria-label="Fechar"><i data-lucide="x"></i></button>
+      </header>
+      <div class="campos">
+        <label>Código <input name="codigo" placeholder="DL-02" maxlength="7" required pattern="[A-Za-z]{2}-\d{2,4}"></label>
+        <label>Bairro <input name="bairro" maxlength="60" required></label>
+        <label class="campo--largo">Nome do ponto <input name="nome" maxlength="80" required placeholder="Arroio X - Ponte da Rua Y"></label>
+        <label>Latitude <input name="latitude" type="number" step="0.000001" required></label>
+        <label>Longitude <input name="longitude" type="number" step="0.000001" required></label>
+        <label>Nível de alerta (cm) <input name="nivel_alerta_cm" type="number" min="10" max="2000" required></label>
+        <label>Nível crítico (cm) <input name="nivel_critico_cm" type="number" min="10" max="2000" required></label>
+        <label class="campo--check"><input name="ativo" type="checkbox" checked> Sensor ativo</label>
+      </div>
+      <p class="modal__erro" data-erro hidden></p>
+      <footer class="modal__rodape">
+        <button type="button" class="botao botao--fantasma" data-fechar>Cancelar</button>
+        <button type="submit" class="botao botao--primario"><i data-lucide="save"></i> Salvar</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <!-- ===================== MODAL: ABRIGO ===================== -->
+  <dialog id="modal-abrigo" class="modal">
+    <form id="form-abrigo" class="modal__form" novalidate>
+      <header class="modal__topo">
+        <h3 id="modal-abrigo-titulo">Novo abrigo</h3>
+        <button type="button" class="botao-icone" data-fechar aria-label="Fechar"><i data-lucide="x"></i></button>
+      </header>
+      <div class="campos">
+        <label class="campo--largo">Nome <input name="nome" maxlength="80" required></label>
+        <label class="campo--largo">Endereço <input name="endereco" maxlength="120" required></label>
+        <label>Bairro <input name="bairro" maxlength="60" required></label>
+        <label>Capacidade <input name="capacidade" type="number" min="1" max="5000" required></label>
+        <label>Latitude <input name="latitude" type="number" step="0.000001" required></label>
+        <label>Longitude <input name="longitude" type="number" step="0.000001" required></label>
+        <label>Ocupação atual <input name="ocupacao" type="number" min="0" max="5000" value="0" required></label>
+        <span></span>
+        <label class="campo--check"><input name="aceita_pets" type="checkbox"> Aceita animais</label>
+        <label class="campo--check"><input name="acessivel" type="checkbox"> Acessível (PcD)</label>
+        <label class="campo--check"><input name="ativo" type="checkbox" checked> Abrigo ativo</label>
+      </div>
+      <p class="modal__erro" data-erro hidden></p>
+      <footer class="modal__rodape">
+        <button type="button" class="botao botao--fantasma" data-fechar>Cancelar</button>
+        <button type="submit" class="botao botao--primario"><i data-lucide="save"></i> Salvar</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <!-- Notificações rápidas (toasts) -->
+  <div id="toasts" class="toasts" aria-live="polite"></div>
+
+  <script src="{{ url_for('static', filename='vendor/lucide.min.js') }}"></script>
+  <script src="{{ url_for('static', filename='vendor/leaflet.js') }}"></script>
+  <script src="{{ url_for('static', filename='vendor/chart.umd.min.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>
