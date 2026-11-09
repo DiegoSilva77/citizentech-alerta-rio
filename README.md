@@ -212,6 +212,44 @@ Os testes não precisam do MySQL: o banco é substituído por dados falsos.
 
 ---
 
+## 🧪 Roteiro de avaliação
+
+Um caminho rápido para conferir cada requisito da Global Solution.
+
+### A) Teste rápido: 2 minutos, sem MySQL
+
+```powershell
+git clone https://github.com/DiegoSilva77/citizentech-alerta-rio
+cd citizentech-alerta-rio
+python -m venv .venv
+.\.venv\Scripts\activate
+pip install -r requirements.txt
+python -m pytest -v
+```
+
+Resultado esperado: **37 passed**. Os testes cobrem status HTTP, validação de entrada,
+autenticação, cabeçalhos de segurança, regra de risco, assinatura HMAC/anti-replay do socket
+e a separação MVC (models sem Flask, controllers sem SQL).
+
+### B) Teste completo: com MySQL (passos 3 a 5 de "Como executar")
+
+| # | O que fazer | O que deve acontecer | Requisito |
+|---|---|---|---|
+| 1 | `python -m scripts.setup_banco` | Banco criado com 5 sensores e 5 abrigos fictícios | MySQL sem ORM |
+| 2 | `python app.py` e abrir http://127.0.0.1:5000 | Painel em **"Tudo tranquilo"**, com mapa, gráficos e clima atual | Interface web + API externa |
+| 3 | `python -m sockets_udp.servidor_udp` (outro terminal) | "Escutando em 127.0.0.1:5005" | Módulo de sockets |
+| 4 | `python -m sockets_udp.sensor_simulado --cenario enchente` | Em ~1 min o painel fica **laranja** e depois **vermelho**, com alertas na lateral | Sockets + regra de risco |
+| 5 | `python -m sockets_udp.sensor_simulado --invasor` | Assinatura falsa e reenvio **recusados** (vermelho no terminal do servidor) | Segurança |
+| 6 | `python -m sockets_udp.sensor_simulado --cenario baixando` | O painel volta ao verde | |
+| 7 | Aba **Gestão** do painel, informando o valor de `API_KEY_OPERADOR` do seu `.env` | Criar, editar e excluir sensores e abrigos | CRUD (POST/PUT/DELETE) |
+| 8 | Na Gestão, salvar um abrigo com nome `<script>` ou ocupação maior que a capacidade | Mensagem de erro de validação (400) | Validação de entrada |
+| 9 | Abrir `logs/alerta_rio.log` | Linhas com data/hora, origem, ação e resultado | Log em arquivo |
+| 10 | `curl -i http://127.0.0.1:5000/api/sensores/999` e `curl -i -X DELETE http://127.0.0.1:5000/api/abrigos/1` (sem chave) | **404** com mensagem genérica e **401** | Status HTTP + erros sem detalhes internos |
+
+> Dica: para recomeçar a demonstração do zero, rode `python -m scripts.setup_banco` de novo.
+
+---
+
 ## 🔌 Endpoints da API
 
 | Método | Rota | Descrição | Status |
