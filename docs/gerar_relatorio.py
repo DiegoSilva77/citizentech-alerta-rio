@@ -23,6 +23,7 @@ from reportlab.graphics.shapes import Drawing, Line, Polygon, Rect, String
 
 ALUNO = "Diego Araujo Silva"
 RM = "573684"
+GITHUB = "https://github.com/DiegoSilva77/citizentech-alerta-rio"
 
 PASTA = Path(__file__).resolve().parent
 SAIDA = sys.argv[1] if len(sys.argv) > 1 else str(PASTA / "Relatorio_AlertaRio.pdf")
@@ -123,6 +124,7 @@ s = []
 s.append(P("Alerta Rio: monitoramento comunitário de enchentes", h1))
 s.append(P(f"Global Solution FIAP · CitizenTech · Coding for Security &nbsp;|&nbsp; Aluno: {ALUNO} "
            f"&nbsp; RM: {RM} &nbsp;|&nbsp; Novembro/2026", sub))
+s.append(P(f"Repositório: <link href='{GITHUB}'><font color='#1d70b8'><u>{GITHUB}</u></font></link>", sub))
 s.append(Spacer(1, 6))
 
 # 1. Problema
